@@ -1,37 +1,37 @@
 import express from 'express';
 import cors from 'cors';
-import 'dotenv/config'
+import 'dotenv/config';
 import connectDB from './config/db.js';
-import "./config/instrument.js"
-import * as Sentry from "@sentry/node"
+import "./config/instrument.js";
+import * as Sentry from "@sentry/node";
 import { clerkWebhooks } from './controllers/webhooks.js';
 
-// Load env variables
-//dotenv.config();
+let cachedApp = null;
 
-// Initialize Express
-const app = express();
+const createServer = async () => {
+  if (cachedApp) return cachedApp;
 
-// Connect to Database
-await connectDB();
+  const app = express();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+  await connectDB();
 
-// Routes
-app.get('/', (req, res) => res.send("API Working"))
-app.get("/debug-sentry",function mainHandler(req,res) {
+  app.use(cors());
+  app.use(express.json());
+
+  app.get('/', (req, res) => res.send("API Working"));
+  app.get("/debug-sentry", function mainHandler(req, res) {
     throw new Error("My first Sentry Error!");
-});
-app.post('/webhooks',clerkWebhooks)
+  });
+  app.post('/webhooks', clerkWebhooks);
 
-// Port
+  Sentry.setupExpressErrorHandler(app);
 
-const PORT = process.env.PORT || 5000;
+  cachedApp = app;
+  return app;
+};
 
-Sentry.setupExpressErrorHandler(app);
-
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+// Export handler for Vercel
+export default async (req, res) => {
+  const app = await createServer();
+  return app(req, res);
+};
